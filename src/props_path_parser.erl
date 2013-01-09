@@ -33,15 +33,8 @@
 
 -spec parse(binary() | list()) -> [{prop, binary()} | {index, integer()}].
 parse(Path) when is_binary(Path) -> parse(binary_to_list(Path));
-parse(Path) ->
-    Tokens = string:tokens(Path, "."),
+parse(Tokens) ->
     Parsed = lists:map(fun(Token) ->
-			       case string:tokens(Token, "[]") of
-				   [P, I] ->
-				       {Index, _} = string:to_integer(I),
-				       [{prop, list_to_binary(P)}, {index, Index}];
-				   [P] ->
-				       [{prop, list_to_binary(P)}]
-			       end
+		    [{prop, Token}]
 		       end, Tokens),
     lists:flatten(Parsed).

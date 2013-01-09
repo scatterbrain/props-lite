@@ -65,7 +65,7 @@ get(Path, Props) ->
 %% @doc Get a property in props structure by path.
 -spec get(prop_path(), props(), undefined | prop_value()) -> undefined | prop_value().
 get(Path, Props, Default) when is_atom(Path) ->
-    get(atom_to_list(Path), Props, Default);
+    get(atom_to_binary(Path, utf8), Props, Default);
 get(Path, Props, Default) when is_binary(Path) ->
     do_get([{prop, Path}], Props, Default);
 get(Path, Props, Default) ->
@@ -127,7 +127,7 @@ set(Path, Value) ->
 %% @doc Set a property in a props structure by path.
 -spec set(prop_path(), prop_value(), props()) -> props().
 set(Path, Value, Props) when is_atom(Path) ->
-    set(atom_to_list(Path), Value, Props);
+    set(atom_to_binary(Path, utf8), Value, Props);
 set(Path, Value, Props) when is_binary(Path) ->
     do_set([{prop, Path}], Value, Props);
 set(Path, Value, Props) ->
@@ -201,7 +201,7 @@ do_set([{index, Idx} | _Rest], _Value, NonList) ->
 %% @doc Internal naive recursive dropper.
 -spec do_drop(prop_path(), props()) -> props().
 do_drop(Path, Props) when is_atom(Path) ->
-    do_drop(atom_to_list(Path), Props);
+    do_drop(atom_to_binary(Path, utf8), Props);
 do_drop(Path, Props) when is_binary(Path) ->
     do_drop_path([{prop, Path}], Props);
 do_drop(Path, Props) ->    

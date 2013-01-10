@@ -11,13 +11,8 @@
          multi_set/1,
          array_index_change/1,
          create_implicit_props/1,
-         create_implicit_array/1,
-         create_implicit_index/1,
          throw_on_get_non_props/1,
-         throw_on_get_non_array/1,
          throw_on_set_non_props/1,
-         throw_on_set_non_array/1,
-         throw_on_set_array_oob/1,
          take_keys/1,
          take_nested_keys/1,
          drop_keys/1,
@@ -64,13 +59,8 @@ all() ->
      multi_set,
      array_index_change,
      create_implicit_props,
-     create_implicit_array,
-     create_implicit_index,
      throw_on_get_non_props,
-     throw_on_get_non_array,
      throw_on_set_non_props,
-     throw_on_set_non_array,
-     throw_on_set_array_oob,
      take_keys,
      take_nested_keys,
      drop_keys,
@@ -86,7 +76,7 @@ all() ->
 %% Basic get tests.
 
 basic_get_with_atom_path(_Config) ->
-    4 = props:get(d.e.f, ?DATA).
+    4 = props:get([<<"d">>, <<"e">>, <<"f">>], ?DATA).
 
 array_get_with_atom_path(_Config) ->
     3 = props:get('b[2].c', ?DATA).
@@ -125,36 +115,19 @@ create_implicit_array(_Config) ->
     Dst = {[{<<"a">>, [1]}]},
     Dst = props:set("a[1]", 1, Src).
 
-create_implicit_index(_Config) ->
-    Src = {[{<<"a">>, [1,2,3]}]},
-    Dst = {[{<<"a">>, [1,2,3,4]}]},
-    Dst = props:set("a[4]", 4, Src).
-
 throw_on_get_non_props(_Config) ->
     ?assertThrows({error, {invalid_access, key, _, _}},
                   props:get(a.b, ?DATA)).
-
-throw_on_get_non_array(_Config) ->
-    ?assertThrows({error, {invalid_access, index, _, _}},
-                  props:get("d[1]", ?DATA)).
 
 throw_on_set_non_props(_Config) ->
     ?assertThrows({error, {invalid_access, key, _, _}},
                   props:set(a.b, 1, ?DATA)).
 
-throw_on_set_non_array(_Config) ->
-    ?assertThrows({error, {invalid_access, index, _, _}},
-                  props:set("a[1]", 1, ?DATA)).
-    
-throw_on_set_array_oob(_Config) ->
-    ?assertThrows({error, {invalid_access, index, _, _}},
-                  props:set("a[5]", 1, {[{<<"a">>, [1,2,3]}]})).
-
 take_keys(_Config) ->
     {[{<<"a">>, 1}]} = props:take([a], ?DATA).
 
 take_nested_keys(_Config) ->
-    {[{<<"d">>,{[{<<"e">>,{[{<<"f">>,4}]}}]}}]} = props:take(['d.e.f'], ?DATA).
+    {[{<<"d">>,{[{<<"e">>,{[{<<"f">>,4}]}}]}}]} = props:take([[<<"d">>, <<"e">>, <<"f">>]], ?DATA).
 
 drop_keys(_Config) ->
     {[{<<"a">>, 1}]} = props:drop([b, d], ?DATA).
@@ -163,7 +136,7 @@ drop_nested_keys(_Config) ->
     {[{<<"a">>,1},
     {<<"b">>,[2,{[{<<"c">>,3}]}]},
     {<<"d">>,{[{<<"e">>,{[]}}]}}]} = 
-    props:drop(['d.e.f'], ?DATA).
+    props:drop([[<<"d">>, <<"e">>, <<"f">>]], ?DATA).
 
 merge(_Config) ->
     Src = props:set([{a, 1}, {b, 1}]),

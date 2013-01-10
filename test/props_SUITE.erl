@@ -3,13 +3,9 @@
 
 -export([all/0,
          basic_get_with_atom_path/1,
-         array_get_with_atom_path/1,
-         basic_get_with_string_path/1,
-         array_get_with_string_path/1,
          simple_get/1,
          simple_set/1,
          multi_set/1,
-         array_index_change/1,
          create_implicit_props/1,
          throw_on_get_non_props/1,
          throw_on_set_non_props/1,
@@ -51,13 +47,9 @@
 
 all() ->
     [basic_get_with_atom_path,
-     array_get_with_atom_path,
-     basic_get_with_string_path,
-     array_get_with_string_path,
      simple_get,
      simple_set,
      multi_set,
-     array_index_change,
      create_implicit_props,
      throw_on_get_non_props,
      throw_on_set_non_props,
@@ -78,15 +70,6 @@ all() ->
 basic_get_with_atom_path(_Config) ->
     4 = props:get([<<"d">>, <<"e">>, <<"f">>], ?DATA).
 
-array_get_with_atom_path(_Config) ->
-    3 = props:get('b[2].c', ?DATA).
-
-basic_get_with_string_path(_Config) ->
-    4 = props:get("d.e.f", ?DATA).
-
-array_get_with_string_path(_Config) ->
-    3 = props:get("b[2].c", ?DATA).
-
 simple_get(_Config) ->
     1 = props:get(a, ?DATA).
 
@@ -98,30 +81,20 @@ multi_set(_Config) ->
             {<<"b">>, 2}]},
     Dst = {[{<<"a">>, {[{<<"b">>, {[{<<"c">>, 1}]}}]}},
             {<<"b">>, 2}]},
-    Dst = props:set(a.b.c, 1, Src).
-
-array_index_change(_Config) ->
-    Src = {[{<<"a">>, [1]}]},
-    Dst = {[{<<"a">>, [2]}]},
-    Dst = props:set("a[1]", 2, Src).
+    Dst = props:set([<<"a">>, <<"b">>, <<"c">>], 1, Src).
 
 create_implicit_props(_Config) ->
     Src = {[]},
     Dst = {[{<<"a">>, {[{<<"b">>, 1}]}}]},
-    Dst = props:set(a.b, 1, Src).
-
-create_implicit_array(_Config) ->
-    Src = {[]},
-    Dst = {[{<<"a">>, [1]}]},
-    Dst = props:set("a[1]", 1, Src).
+    Dst = props:set([<<"a">>, <<"b">>], 1, Src).
 
 throw_on_get_non_props(_Config) ->
     ?assertThrows({error, {invalid_access, key, _, _}},
-                  props:get(a.b, ?DATA)).
+                  props:get([<<"a">>, <<"b">>], ?DATA)).
 
 throw_on_set_non_props(_Config) ->
     ?assertThrows({error, {invalid_access, key, _, _}},
-                  props:set(a.b, 1, ?DATA)).
+                  props:set([<<"a">>, <<"b">>], 1, ?DATA)).
 
 take_keys(_Config) ->
     {[{<<"a">>, 1}]} = props:take([a], ?DATA).

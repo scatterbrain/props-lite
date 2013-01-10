@@ -18,14 +18,18 @@
          select_matches_nested/1,
          delete_matches/1,
          delete_matches_nested/1,
-         convert_mochijson2_to_props/1,
          set_with_empty_list/1]).
 
 -include_lib("common_test/include/ct.hrl").
 
--define(DATA, {[{<<"a">>, 1},
-                {<<"b">>, [2, {[{<<"c">>, 3}]}]},
-                {<<"d">>, {[{<<"e">>, {[{<<"f">>, 4}]}}]}}]}).
+-define(DATA, {p,{3,
+    {<<"a">>,1,nil,
+     {<<"b">>,
+      {p,{1,{<<"c">>,3,nil,nil}}},
+      nil,
+      {<<"d">>,
+       {p,{1,{<<"e">>,{p,{1,{<<"f">>,4,nil,nil}}},nil,nil}}},
+       nil,nil}}}}}).
 
 -define(assertThrows(Exc, Expr),
         begin
@@ -62,7 +66,6 @@ all() ->
      select_matches_nested,
      delete_matches,
      delete_matches_nested,
-     convert_mochijson2_to_props,
      set_with_empty_list].
 
 %% Basic get tests.
@@ -74,18 +77,25 @@ simple_get(_Config) ->
     1 = props:get(a, ?DATA).
 
 simple_set(_Config) ->
-    {[{<<"a">>, 1}]} = props:set(a, 1, props:new()).
+    {p,{1,{<<"a">>,1,nil,nil}}} = props:set(a, 1, props:new()).
 
 multi_set(_Config) ->
-    Src = {[{<<"a">>, {[{<<"b">>, {[]}}]}},
-            {<<"b">>, 2}]},
-    Dst = {[{<<"a">>, {[{<<"b">>, {[{<<"c">>, 1}]}}]}},
-            {<<"b">>, 2}]},
+    Src = {p,{2,
+            {<<"a">>,
+                {p,{1,{<<"b">>,{p,{0,nil}},nil,nil}}},
+                nil,
+                {<<"b">>,2,nil,nil}}}}, 
+    Dst = {p,{2,
+            {<<"a">>,
+                {p,{1,{<<"b">>,{p,{1,{<<"c">>,1,nil,nil}}},nil,nil}}},
+                nil,
+                {<<"b">>,2,nil,nil}}}},
+
     Dst = props:set([<<"a">>, <<"b">>, <<"c">>], 1, Src).
 
 create_implicit_props(_Config) ->
-    Src = {[]},
-    Dst = {[{<<"a">>, {[{<<"b">>, 1}]}}]},
+    Src = props:new(),
+    Dst = {p,{1,{<<"a">>,{p,{1,{<<"b">>,1,nil,nil}}},nil,nil}}},
     Dst = props:set([<<"a">>, <<"b">>], 1, Src).
 
 throw_on_get_non_props(_Config) ->
@@ -97,19 +107,27 @@ throw_on_set_non_props(_Config) ->
                   props:set([<<"a">>, <<"b">>], 1, ?DATA)).
 
 take_keys(_Config) ->
-    {[{<<"a">>, 1}]} = props:take([a], ?DATA).
+    {p,{1,{<<"a">>,1,nil,nil}}} = props:take([a], ?DATA).
 
 take_nested_keys(_Config) ->
-    {[{<<"d">>,{[{<<"e">>,{[{<<"f">>,4}]}}]}}]} = props:take([[<<"d">>, <<"e">>, <<"f">>]], ?DATA).
+    Exp = {p,{1,
+            {<<"d">>,
+                {p,{1,{<<"e">>,{p,{1,{<<"f">>,4,nil,nil}}},nil,nil}}},
+                nil,nil}}}, 
+    Exp = props:take([[<<"d">>, <<"e">>, <<"f">>]], ?DATA).
 
 drop_keys(_Config) ->
-    {[{<<"a">>, 1}]} = props:drop([b, d], ?DATA).
+    {p,{1,{<<"a">>,1,nil,nil}}} = props:drop([b, d], ?DATA).
 
 drop_nested_keys(_Config) ->
-    {[{<<"a">>,1},
-    {<<"b">>,[2,{[{<<"c">>,3}]}]},
-    {<<"d">>,{[{<<"e">>,{[]}}]}}]} = 
-    props:drop([[<<"d">>, <<"e">>, <<"f">>]], ?DATA).
+    Exp = {p,{3,
+            {<<"a">>,1,nil,
+                {<<"b">>,
+                    {p,{1,{<<"c">>,3,nil,nil}}},
+                    nil,
+                    {<<"d">>,{p,{1,{<<"e">>,{p,{0,nil}},nil,nil}}},nil,nil}}}}}, 
+
+    Exp = props:drop([[<<"d">>, <<"e">>, <<"f">>]], ?DATA).
 
 merge(_Config) ->
     Src = props:set([{a, 1}, {b, 1}]),
@@ -117,8 +135,7 @@ merge(_Config) ->
     Dst = props:merge(Src, props:set([{b, 2}, {c, 3}])).
 
 select_matches(_Config) ->
-    PropsList = [props:set([{a, 1}, {b, 1}]),
-		 props:set([{a, 2}, {b, 1}])],
+    PropsList = [props:set([{a, 1}, {b, 1}]), props:set([{a, 2}, {b, 1}])],
     
     Matches1 = props:select_matches(PropsList, props:set([{a, 1}])),
     1 = length(Matches1),
@@ -132,14 +149,14 @@ select_matches(_Config) ->
     0 = length(Matches3).
 
 select_matches_nested(_Config) ->
-    PropsList = [props:set([{a, 1}, {c.d, 2}, {c.e.f, 3}]),
-                 props:set([{a, 2}, {c.d, 3}, {c.e.f, 3}])],
+    PropsList = [props:set([{a, 1}, {[<<"c">>, <<"d">>], 2}, {[<<"c">>, <<"e">>, <<"f">>], 3}]),
+        props:set([{a, 2}, {[<<"c">>, <<"d">>], 3}, {[<<"c">>, <<"e">>, <<"f">>], 3}])],
 
-    Matches1 = props:select_matches(PropsList, props:set(c.d, 2)),
+    Matches1 = props:select_matches(PropsList, props:set([<<"c">>, <<"d">>], 2)),
     1 = length(Matches1),
     1 = props:get(a, hd(Matches1)),
 
-    Matches2 = props:select_matches(PropsList, props:set(c.e.f, 3)),
+    Matches2 = props:select_matches(PropsList, props:set([<<"c">>, <<"e">>, <<"f">>], 3)),
     2 = length(Matches2).
 
 delete_matches(_Config) ->
@@ -158,34 +175,17 @@ delete_matches(_Config) ->
     2 = length(Rest3).
 
 delete_matches_nested(_Config) ->
-    PropsList = [props:set([{a.b, 1}, {c.d.e.f, 2}]),
-                 props:set([{a.b, 2}, {c.d.e.f, 2}])],
+    PropsList = [props:set([{[<<"a">>, <<"b">>], 1}, {[<<"c">>, <<"d">>, <<"e">>, <<"f">>], 2}]),
+            props:set([{[<<"a">>, <<"b">>], 2}, {[<<"c">>, <<"d">>, <<"e">>, <<"f">>], 2}])],
     
-    Rest1 = props:delete_matches(PropsList, props:set(a.b, 2)),
+    Rest1 = props:delete_matches(PropsList, props:set([<<"a">>, <<"b">>], 2)),
     1 = length(Rest1),
-    1 = props:get(a.b, hd(Rest1)),
+    1 = props:get([<<"a">>, <<"b">>], hd(Rest1)),
     
-    Rest2 = props:delete_matches(PropsList, props:set(c.d.e.f, 2)),
+    Rest2 = props:delete_matches(PropsList, props:set([<<"c">>, <<"d">>, <<"e">>, <<"f">>], 2)),
     0 = length(Rest2).
 
-convert_mochijson2_to_props(_Config) ->
 
-    MochiStruct = {struct,[{<<"data">>,
-                [{struct,[{<<"name">>,<<"Peter Robinett">>},
-                            {<<"id">>,<<"37004195">>},
-                            {<<"picture">>,<<"http://profile.ak.fbcdn.net/hpro">>}]},
-                    {struct,[{<<"name">>,<<"Ville Vesterinen">>},
-                            {<<"id">>,<<"37004346">>},
-                            {<<"picture">>,<<"http://profile.ak.fbcdn.net/">>}]} 
-                ]}]}, 
-
-    Props = props:from_mochijson2(MochiStruct),
-    [H|_T] = props:get(<<"data">>, Props), 
-    <<"37004195">> = props:get(<<"id">>, H),
-
-    N = props:new(),
-    N = props:from_mochijson2({struct, []}),
-    ok.
 
 set_with_empty_list(_Config) ->
     N = props:new(),

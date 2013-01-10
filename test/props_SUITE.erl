@@ -22,13 +22,13 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--define(DATA, {p,{3,
+-define(DATA, {{3,
     {<<"a">>,1,nil,
      {<<"b">>,
-      {p,{1,{<<"c">>,3,nil,nil}}},
+      {{1,{<<"c">>,3,nil,nil}}},
       nil,
       {<<"d">>,
-       {p,{1,{<<"e">>,{p,{1,{<<"f">>,4,nil,nil}}},nil,nil}}},
+       {{1,{<<"e">>,{{1,{<<"f">>,4,nil,nil}}},nil,nil}}},
        nil,nil}}}}}).
 
 -define(assertThrows(Exc, Expr),
@@ -77,17 +77,17 @@ simple_get(_Config) ->
     1 = props:get(a, ?DATA).
 
 simple_set(_Config) ->
-    {p,{1,{<<"a">>,1,nil,nil}}} = props:set(a, 1, props:new()).
+    {{1,{<<"a">>,1,nil,nil}}} = props:set(a, 1, props:new()).
 
 multi_set(_Config) ->
-    Src = {p,{2,
+    Src = {{2,
             {<<"a">>,
-                {p,{1,{<<"b">>,{p,{0,nil}},nil,nil}}},
+                {{1,{<<"b">>,{{0,nil}},nil,nil}}},
                 nil,
                 {<<"b">>,2,nil,nil}}}}, 
-    Dst = {p,{2,
+    Dst = {{2,
             {<<"a">>,
-                {p,{1,{<<"b">>,{p,{1,{<<"c">>,1,nil,nil}}},nil,nil}}},
+                {{1,{<<"b">>,{{1,{<<"c">>,1,nil,nil}}},nil,nil}}},
                 nil,
                 {<<"b">>,2,nil,nil}}}},
 
@@ -95,7 +95,7 @@ multi_set(_Config) ->
 
 create_implicit_props(_Config) ->
     Src = props:new(),
-    Dst = {p,{1,{<<"a">>,{p,{1,{<<"b">>,1,nil,nil}}},nil,nil}}},
+    Dst = {{1,{<<"a">>,{{1,{<<"b">>,1,nil,nil}}},nil,nil}}},
     Dst = props:set([<<"a">>, <<"b">>], 1, Src).
 
 throw_on_get_non_props(_Config) ->
@@ -107,25 +107,25 @@ throw_on_set_non_props(_Config) ->
                   props:set([<<"a">>, <<"b">>], 1, ?DATA)).
 
 take_keys(_Config) ->
-    {p,{1,{<<"a">>,1,nil,nil}}} = props:take([a], ?DATA).
+    {{1,{<<"a">>,1,nil,nil}}} = props:take([a], ?DATA).
 
 take_nested_keys(_Config) ->
-    Exp = {p,{1,
+    Exp = {{1,
             {<<"d">>,
-                {p,{1,{<<"e">>,{p,{1,{<<"f">>,4,nil,nil}}},nil,nil}}},
+                {{1,{<<"e">>,{{1,{<<"f">>,4,nil,nil}}},nil,nil}}},
                 nil,nil}}}, 
     Exp = props:take([[<<"d">>, <<"e">>, <<"f">>]], ?DATA).
 
 drop_keys(_Config) ->
-    {p,{1,{<<"a">>,1,nil,nil}}} = props:drop([b, d], ?DATA).
+    {{1,{<<"a">>,1,nil,nil}}} = props:drop([b, d], ?DATA).
 
 drop_nested_keys(_Config) ->
-    Exp = {p,{3,
+    Exp = {{3,
             {<<"a">>,1,nil,
                 {<<"b">>,
-                    {p,{1,{<<"c">>,3,nil,nil}}},
+                    {{1,{<<"c">>,3,nil,nil}}},
                     nil,
-                    {<<"d">>,{p,{1,{<<"e">>,{p,{0,nil}},nil,nil}}},nil,nil}}}}}, 
+                    {<<"d">>,{{1,{<<"e">>,{{0,nil}},nil,nil}}},nil,nil}}}}}, 
 
     Exp = props:drop([[<<"d">>, <<"e">>, <<"f">>]], ?DATA).
 

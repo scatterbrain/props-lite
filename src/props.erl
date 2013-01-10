@@ -34,15 +34,16 @@
          delete_matches/2,
          to_pretty/1,
          to_string/1,
+         to_msgpack_format/1,
+         from_msgpack_format/1, 
          to_proplist/1,
          from_proplist/1]).
 
--define(PROPS_TAG, p).
 -export_type([prop_value/0, props/0, prop_path/0]).
 
 -type prop_value() :: true | false | number() | 
                       [prop_value() | props()] | props().
--opaque props() :: {?PROPS_TAG, {integer(), term()}}.
+-opaque props() :: {{integer(), term()}}.
 -type prop_path() :: atom() | string() | binary().
 -type path_tokens() :: [{prop | index, pos_integer() | binary()}].
 
@@ -54,7 +55,7 @@
 %% @doc Create a new props structure.
 -spec new() -> props().
 new() ->
-    {?PROPS_TAG, gb_trees:empty()}.
+    {gb_trees:empty()}.
 
 %% @doc Get a property for a props structure.
 %% This is equivalent to `get(PathSpec, Props, undefined)`.
@@ -76,7 +77,7 @@ get(Path, Props, Default) ->
 -spec do_get(path_tokens(), prop_value(), undefined | prop_value()) -> undefined | prop_value().
 do_get([], Value, _Default) ->
     Value;
-do_get([{prop, Key} | Rest], {?PROPS_TAG, GBTree}, Default) ->
+do_get([{prop, Key} | Rest], {GBTree}, Default) ->
     case gb_trees:lookup(Key, GBTree) of
         none ->
             Default;
@@ -121,13 +122,12 @@ set(Path, Value, Props) ->
 
 %% @doc Internal naive recursive setter.
 -spec do_set(path_tokens(), prop_value(), props()) -> props().
-do_set([{prop, Key}], Value, {?PROPS_TAG, GBTree}) ->
-
+do_set([{prop, Key}], Value, {GBTree}) ->
     GBTree2 = gb_trees:enter(Key, Value, GBTree),
-    {?PROPS_TAG, GBTree2};
+    {GBTree2};
 do_set([{prop, Key}], _Value, NonProps) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps));
-do_set([{prop, Key} | Rest], Value, {?PROPS_TAG, GBTree}) ->
+do_set([{prop, Key} | Rest], Value, {GBTree}) ->
     Val = case gb_trees:lookup(Key, GBTree) of
               none ->
                   case Rest of
@@ -135,11 +135,10 @@ do_set([{prop, Key} | Rest], Value, {?PROPS_TAG, GBTree}) ->
                           do_set(Rest, Value, props:new())
                   end;
               {value, Other} ->
-                  io:format("Rest ~p Value ~p Other ~p ~n", [Rest, Value, Other]),
                   do_set(Rest, Value, Other)
           end,
     GBTree2 = gb_trees:enter(Key, Val, GBTree),
-    {?PROPS_TAG, GBTree2};
+    {GBTree2};
 do_set([{prop, Key} | _Rest], _Value, NonProps) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps)).
 
@@ -152,20 +151,20 @@ do_drop(Path, Props) when is_binary(Path) ->
 do_drop(Path, Props) ->    
     PathTokens = props_path_parser:parse(Path),
     do_drop_path(PathTokens, Props).
-do_drop_path([{prop, Key}], {?PROPS_TAG, GBTree}) ->
+do_drop_path([{prop, Key}], {GBTree}) ->
     GBTree2 = gb_trees:delete_any(Key, GBTree),
-    {?PROPS_TAG, GBTree2};
+    {GBTree2};
 do_drop_path([{prop, Key}], NonProps) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps));
-do_drop_path([{prop, Key} | Rest], {?PROPS_TAG, GBTree}) ->    
+do_drop_path([{prop, Key} | Rest], {GBTree}) ->    
     Val = case gb_trees:lookup(Key, GBTree) of
               none ->
-                  {?PROPS_TAG, GBTree};
+                  {GBTree};
               {value, Other} ->
                   do_drop_path(Rest, Other)
           end,
     GBTree2 = gb_trees:enter(Key, Val, GBTree),
-    {?PROPS_TAG, GBTree2};
+    {GBTree2};
 do_drop_path([{prop, Key} | _Rest], NonProps) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps)).
 
@@ -206,11 +205,11 @@ drop(Keys, Props) ->
 %% @doc Merge two property structures.
 %% Duplicate keys in the second structure overwrite those in the first.
 -spec merge(props(), props()) -> props().
-merge({?PROPS_TAG, MergeTargetTree}, {?PROPS_TAG, MergeSourceTree}) ->
+merge({MergeTargetTree}, {MergeSourceTree}) ->
     NewTree = lists:foldl(fun({MKey, MVal}, AccIn) ->
                 gb_trees:enter(MKey, MVal, AccIn)
         end, MergeTargetTree, gb_trees:to_list(MergeSourceTree)), 
-    {?PROPS_TAG, NewTree}.
+    {NewTree}.
 
 %% @doc Return a list of differences between two property structures.
 -spec diff(props(), props()) -> [{prop_path(), {prop_value(), prop_value()}}].
@@ -233,7 +232,7 @@ diff(Props1, Props2) ->
         
 %% @doc Return the immediate keys in a property structure.
 -spec keys(props()) -> [binary()].
-keys({?PROPS_TAG, GBTree}) ->
+keys({GBTree}) ->
     gb_trees:keys(GBTree).
 
 %% @doc Return the inested keys in a property structure.
@@ -251,6 +250,33 @@ nested_keys(Path, {K, V}) ->
 nested_keys(Path, _) ->    
     Path.
 
+-spec to_msgpack_format(props()) -> term().
+to_msgpack_format({GBTree}) ->
+    PropList = lists:map(fun({MKey, MVal}) ->
+        case MVal of
+            {_} ->
+                {MKey, to_msgpack_format(MVal)};
+            _ ->
+                {MKey, MVal}
+        end
+    end, gb_trees:to_list(GBTree)), 
+
+    {PropList}.
+
+%% @doc converts msgpack style map 
+-spec from_msgpack_format(term()) -> props:props().
+from_msgpack_format({PropList}) when is_list(PropList), length(PropList) =:= 0 ->
+    props:new();
+from_msgpack_format({PropList}) when is_list(PropList) ->
+    props:set(from_msgpack_format(PropList));
+from_msgpack_format(List) when is_list(List) ->
+    [from_msgpack_format(Elem) || Elem <- List];
+from_msgpack_format({Key, Value}) ->
+    {Key, from_msgpack_format(Value)};
+from_msgpack_format(Value) ->
+    Value.
+
+%
 %% @doc Fold over the immediate keys/vals in a proplist.
 -spec fold(fun((binary(), prop_value(), term()) -> term()), term(), props()) -> term().
 fold(F, Init, {PropList}) ->
@@ -376,7 +402,7 @@ select_or_delete_matches(PropsList, MatchProps, SelectOrDelete) ->
 
 %% @doc Test if a props matches another props.
 -spec match(props(), props()) -> boolean().
-match(Props, {?PROPS_TAG, GBTree}) ->
+match(Props, {GBTree}) ->
 
     Found = lists:foldl(fun({MatchKey, MatchVal}, AccIn) ->
                 case AccIn of
@@ -386,8 +412,8 @@ match(Props, {?PROPS_TAG, GBTree}) ->
                         case props:get(MatchKey, Props) of
                             undefined ->
                                 false;
-                            {?PROPS_TAG, PropsVal} ->
-                                match({?PROPS_TAG, PropsVal}, MatchVal);
+                            {PropsVal} ->
+                                match({PropsVal}, MatchVal);
                             MatchVal ->
                                 true;
                             _ ->

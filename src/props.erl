@@ -35,7 +35,8 @@
          to_pretty/1,
          to_string/1,
          to_msgpack_format/1,
-         from_msgpack_format/1, 
+         from_msgpack_format/1,
+         from_mochijson2/1,
          to_proplist/1,
          from_proplist/1]).
 
@@ -274,6 +275,19 @@ from_msgpack_format(List) when is_list(List) ->
 from_msgpack_format({Key, Value}) ->
     {Key, from_msgpack_format(Value)};
 from_msgpack_format(Value) ->
+    Value.
+
+%% @doc converts from mochijson2 format (http://doc.erlagner.org/mochiweb/mochijson2.html) to props
+-spec from_mochijson2(term()) -> props:props().
+from_mochijson2({struct, PropList}) when is_list(PropList), length(PropList) =:= 0 ->
+    props:new();
+from_mochijson2({struct, PropList}) when is_list(PropList) ->
+    props:set(from_mochijson2(PropList));
+from_mochijson2(List) when is_list(List) ->
+    [from_mochijson2(Elem) || Elem <- List];
+from_mochijson2({Key, Value}) ->
+    {Key, from_mochijson2(Value)};
+from_mochijson2(Value) ->
     Value.
 
 %

@@ -251,18 +251,18 @@ nested_keys(Path, {K, V}) ->
 nested_keys(Path, _) ->    
     Path.
 
+%% @doc convert to message pack format
 -spec to_msgpack_format(props()) -> term().
+to_msgpack_format({0, nil}) ->
+    {[]};
 to_msgpack_format({GBTree}) ->
-    PropList = lists:map(fun({MKey, MVal}) ->
-        case MVal of
-            {_} ->
-                {MKey, to_msgpack_format(MVal)};
-            _ ->
-                {MKey, MVal}
-        end
-    end, gb_trees:to_list(GBTree)), 
-
-    {PropList}.
+    {to_msgpack_format(gb_trees:to_list(GBTree))};
+to_msgpack_format(List) when is_list(List) ->
+    [to_msgpack_format(Elem) || Elem <- List];
+to_msgpack_format({Key, Value}) ->
+    {Key, to_msgpack_format(Value)};
+to_msgpack_format(Value) ->
+    Value.
 
 %% @doc converts msgpack style map 
 -spec from_msgpack_format(term()) -> props:props().

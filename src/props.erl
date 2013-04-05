@@ -67,25 +67,24 @@ get(Path, Props) ->
 %% @doc Get a property in props structure by path.
 -spec get(prop_path(), props(), undefined | prop_value()) -> undefined | prop_value().
 get(Path, Props, Default) when is_atom(Path) ->
-    get(atom_to_binary(Path, utf8), Props, Default);
+    do_get([atom_to_binary(Path, utf8)], Props, Default);
 get(Path, Props, Default) when is_binary(Path) ->
-    do_get([{prop, Path}], Props, Default);
+    do_get([Path], Props, Default);
 get(Path, Props, Default) ->
-    PathTokens = props_path_parser:parse(Path),
-    do_get(PathTokens, Props, Default).
+    do_get(Path, Props, Default).
 
 %% @doc Internal getter which operates on path tokens.
 -spec do_get(path_tokens(), prop_value(), undefined | prop_value()) -> undefined | prop_value().
 do_get([], Value, _Default) ->
     Value;
-do_get([{prop, Key} | Rest], {GBTree}, Default) ->
+do_get([Key | Rest], {GBTree}, Default) ->
     case gb_trees:lookup(Key, GBTree) of
         none ->
             Default;
         {value, Other} ->
             do_get(Rest, Other, Default)
     end;
-do_get([{prop, Key} | _Rest], NonProps, _Default) ->
+do_get([Key | _Rest], NonProps, _Default) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps)).
 
 %% @doc Set properties in a new props structure.
@@ -114,25 +113,24 @@ set(Path, Value) ->
 %% @doc Set a property in a props structure by path.
 -spec set(prop_path(), prop_value(), props()) -> props().
 set(Path, Value, Props) when is_atom(Path) ->
-    set(atom_to_binary(Path, utf8), Value, Props);
+    do_set([atom_to_binary(Path, utf8)], Value, Props);
 set(Path, Value, Props) when is_binary(Path) ->
-    do_set([{prop, Path}], Value, Props);
+    do_set([Path], Value, Props);
 set(Path, Value, Props) ->
-    PathTokens = props_path_parser:parse(Path),
-    do_set(PathTokens, Value, Props).
+    do_set(Path, Value, Props).
 
 %% @doc Internal naive recursive setter.
 -spec do_set(path_tokens(), prop_value(), props()) -> props().
-do_set([{prop, Key}], Value, {GBTree}) ->
+do_set([Key], Value, {GBTree}) ->
     GBTree2 = gb_trees:enter(Key, Value, GBTree),
     {GBTree2};
-do_set([{prop, Key}], _Value, NonProps) ->
+do_set([Key], _Value, NonProps) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps));
-do_set([{prop, Key} | Rest], Value, {GBTree}) ->
+do_set([Key | Rest], Value, {GBTree}) ->
     Val = case gb_trees:lookup(Key, GBTree) of
               none ->
                   case Rest of
-                      [{prop, _} | _] ->
+                      [_ | _] ->
                           do_set(Rest, Value, props:new())
                   end;
               {value, Other} ->
@@ -140,24 +138,23 @@ do_set([{prop, Key} | Rest], Value, {GBTree}) ->
           end,
     GBTree2 = gb_trees:enter(Key, Val, GBTree),
     {GBTree2};
-do_set([{prop, Key} | _Rest], _Value, NonProps) ->
+do_set([Key | _Rest], _Value, NonProps) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps)).
 
 %% @doc Internal naive recursive dropper.
 -spec do_drop(prop_path(), props()) -> props().
 do_drop(Path, Props) when is_atom(Path) ->
-    do_drop(atom_to_binary(Path, utf8), Props);
+    do_drop_path([atom_to_binary(Path, utf8)], Props);
 do_drop(Path, Props) when is_binary(Path) ->
-    do_drop_path([{prop, Path}], Props);
+    do_drop_path([Path], Props);
 do_drop(Path, Props) ->    
-    PathTokens = props_path_parser:parse(Path),
-    do_drop_path(PathTokens, Props).
-do_drop_path([{prop, Key}], {GBTree}) ->
+    do_drop_path(Path, Props).
+do_drop_path([Key], {GBTree}) ->
     GBTree2 = gb_trees:delete_any(Key, GBTree),
     {GBTree2};
-do_drop_path([{prop, Key}], NonProps) ->
+do_drop_path([Key], NonProps) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps));
-do_drop_path([{prop, Key} | Rest], {GBTree}) ->    
+do_drop_path([Key | Rest], {GBTree}) ->    
     Val = case gb_trees:lookup(Key, GBTree) of
               none ->
                   {GBTree};
@@ -166,7 +163,7 @@ do_drop_path([{prop, Key} | Rest], {GBTree}) ->
           end,
     GBTree2 = gb_trees:enter(Key, Val, GBTree),
     {GBTree2};
-do_drop_path([{prop, Key} | _Rest], NonProps) ->
+do_drop_path([Key | _Rest], NonProps) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps)).
 
 %% @doc Make a property structure from a proplist.

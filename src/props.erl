@@ -56,7 +56,7 @@
 %% @doc Create a new props structure.
 -spec new() -> props().
 new() ->
-    {gb_trees:empty()}.
+    #{}.
 
 %% @doc Get a property for a props structure.
 %% This is equivalent to `get(PathSpec, Props, undefined)`.
@@ -78,11 +78,11 @@ get(Path, Props, Default) ->
 -spec do_get(path_tokens(), prop_value(), undefined | prop_value()) -> undefined | prop_value().
 do_get([], Value, _Default) ->
     Value;
-do_get([{prop, Key} | Rest], {GBTree}, Default) ->
-    case gb_trees:lookup(Key, GBTree) of
-        none ->
+do_get([{prop, Key} | Rest], Map, Default) when is_map(Map) ->
+    case maps:find(Key, Map) of
+        error ->
             Default;
-        {value, Other} ->
+        {ok, Other} ->
             do_get(Rest, Other, Default)
     end;
 do_get([{prop, Key} | _Rest], NonProps, _Default) ->
@@ -123,23 +123,23 @@ set(Path, Value, Props) ->
 
 %% @doc Internal naive recursive setter.
 -spec do_set(path_tokens(), prop_value(), props()) -> props().
-do_set([{prop, Key}], Value, {GBTree}) ->
-    GBTree2 = gb_trees:enter(Key, Value, GBTree),
-    {GBTree2};
+do_set([{prop, Key}], Value, Map) when is_map(Map) ->
+    Map2 = maps:put(Key, Value, Map),
+    Map2;
 do_set([{prop, Key}], _Value, NonProps) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps));
-do_set([{prop, Key} | Rest], Value, {GBTree}) ->
-    Val = case gb_trees:lookup(Key, GBTree) of
-              none ->
+do_set([{prop, Key} | Rest], Value, Map) when is_map(Map) ->
+    Val = case maps:find(Key, Map) of
+              error ->
                   case Rest of
                       [{prop, _} | _] ->
                           do_set(Rest, Value, props:new())
                   end;
-              {value, Other} ->
+              {ok, Other} ->
                   do_set(Rest, Value, Other)
           end,
-    GBTree2 = gb_trees:enter(Key, Val, GBTree),
-    {GBTree2};
+    Map2 = maps:put(Key, Val, Map),
+    Map2;
 do_set([{prop, Key} | _Rest], _Value, NonProps) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps)).
 
@@ -152,20 +152,20 @@ do_drop(Path, Props) when is_binary(Path) ->
 do_drop(Path, Props) ->    
     PathTokens = props_path_parser:parse(Path),
     do_drop_path(PathTokens, Props).
-do_drop_path([{prop, Key}], {GBTree}) ->
-    GBTree2 = gb_trees:delete_any(Key, GBTree),
-    {GBTree2};
+do_drop_path([{prop, Key}], Map) when is_map(Map) ->
+    Map2 = maps:remove(Key, Map),
+    Map2;
 do_drop_path([{prop, Key}], NonProps) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps));
-do_drop_path([{prop, Key} | Rest], {GBTree}) ->    
-    Val = case gb_trees:lookup(Key, GBTree) of
-              none ->
-                  {GBTree};
-              {value, Other} ->
+do_drop_path([{prop, Key} | Rest], Map) when is_map(Map) ->    
+    Val = case maps:find(Key, Map) of
+              error ->
+                  Map;
+              {ok, Other} ->
                   do_drop_path(Rest, Other)
           end,
-    GBTree2 = gb_trees:enter(Key, Val, GBTree),
-    {GBTree2};
+    Map2 = maps:put(Key, Val, Map),
+    Map2;
 do_drop_path([{prop, Key} | _Rest], NonProps) ->
     throw(?INVALID_ACCESS_KEY(Key, NonProps)).
 
@@ -206,11 +206,11 @@ drop(Keys, Props) ->
 %% @doc Merge two property structures.
 %% Duplicate keys in the second structure overwrite those in the first.
 -spec merge(props(), props()) -> props().
-merge({MergeTargetTree}, {MergeSourceTree}) ->
+merge(MergeTargetTree, MergeSourceTree) when is_map(MergeTargetTree), is_map(MergeSourceTree) ->
     NewTree = lists:foldl(fun({MKey, MVal}, AccIn) ->
-                gb_trees:enter(MKey, MVal, AccIn)
-        end, MergeTargetTree, gb_trees:to_list(MergeSourceTree)), 
-    {NewTree}.
+                maps:put(MKey, MVal, AccIn)
+        end, MergeTargetTree, maps:to_list(MergeSourceTree)), 
+    NewTree.
 
 %% @doc Return a list of differences between two property structures.
 -spec diff(props(), props()) -> [{prop_path(), {prop_value(), prop_value()}}].
@@ -233,8 +233,8 @@ diff(Props1, Props2) ->
         
 %% @doc Return the immediate keys in a property structure.
 -spec keys(props()) -> [binary()].
-keys({GBTree}) ->
-    gb_trees:keys(GBTree).
+keys(Map) ->
+    maps:keys(Map).
 
 %% @doc Return the inested keys in a property structure.
 -spec nested_keys(props()) -> [binary()].
@@ -255,8 +255,8 @@ nested_keys(Path, _) ->
 -spec to_msgpack_format(props()) -> term().
 to_msgpack_format({0, nil}) ->
     {[]};
-to_msgpack_format({GBTree}) ->
-    {to_msgpack_format(gb_trees:to_list(GBTree))};
+to_msgpack_format(Map) when is_map(Map) ->
+    {to_msgpack_format(maps:to_list(Map))};
 to_msgpack_format(List) when is_list(List) ->
     [to_msgpack_format(Elem) || Elem <- List];
 to_msgpack_format({Key, Value}) ->
@@ -416,7 +416,7 @@ select_or_delete_matches(PropsList, MatchProps, SelectOrDelete) ->
 
 %% @doc Test if a props matches another props.
 -spec match(props(), props()) -> boolean().
-match(Props, {GBTree}) ->
+match(Props, Map) ->
 
     Found = lists:foldl(fun({MatchKey, MatchVal}, AccIn) ->
                 case AccIn of
@@ -426,8 +426,8 @@ match(Props, {GBTree}) ->
                         case props:get(MatchKey, Props) of
                             undefined ->
                                 false;
-                            {PropsVal} ->
-                                match({PropsVal}, MatchVal);
+                            PropsVal when is_map(PropsVal) ->
+                                match(PropsVal, MatchVal);
                             MatchVal ->
                                 true;
                             _ ->
@@ -435,7 +435,7 @@ match(Props, {GBTree}) ->
                         end
                 end
 
-        end, true, gb_trees:to_list(GBTree)),  
+        end, true, maps:to_list(Map)),  
 
     Found.
 
